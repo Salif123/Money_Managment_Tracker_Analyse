@@ -1,0 +1,9 @@
+fastapi
+uvicorn[standard]
+python-dotenv
+sqlalchemy
+alembic
+pydantic
+pydantic-settings
+python-multipart
+aiofiles
