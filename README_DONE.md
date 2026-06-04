@@ -1,23 +1,43 @@
-# Bill Manager - Section 1 Complete
+# Bill Manager - Database Models & Migrations Complete
 
-Welcome to **Bill Manager**, a local bill and invoice manager app designed to extract, store, and manage your billing transactions. Section 1 covers the baseline folder structure, configurations, and environment scaffolding.
+Welcome to **Bill Manager**, a local bill and invoice manager app designed to extract, store, and manage your billing transactions. This documentation covers the complete setup for both **Section 1 (App Scaffolding)** and **Section 2 (Database Models, Migrations, & API endpoints)**.
 
 ---
 
 ## What is Built
 
-1. **Python 3.11 Backend (FastAPI)**:
-   - Configured with `pydantic-settings` to load settings from an environment configuration.
-   - Built a `/api/health` status check endpoint.
-   - Mounted static directory serving files from the `uploads/` directory.
-   - Enabled CORS policies specifically allowing requests from the frontend client development origin (`http://localhost:5173`).
-2. **React 18 Frontend (Vite + Tailwind CSS)**:
-   - Configured Vite server proxy to map `/api` to the backend running on `http://localhost:8000`.
-   - Setup Tailwind CSS v3 including the `@tailwindcss/forms` plugin for streamlined form stylings.
-   - Built a premium dashboard workspace shell with a dark-themed sidebar, active-state routing, and real-time backend connection health monitoring.
-3. **Storage & Assets Scaffold**:
-   - Initialized an `uploads/` directory to hold processed files.
-   - Created Git configuration rules (`.gitignore`) to ignore dependency directories (`node_modules`, `venv`), builds, local secrets (`.env`), and runtime file artifacts.
+### 1. Python 3.11 Backend (FastAPI)
+- **Settings & Config**: Configured with `pydantic-settings` to load environments (`.env`).
+- **Database Engine (`backend/database.py`)**: Configured SQLAlchemy with SQLite support (`check_same_thread=False` parameter). Exposes a `get_db` dependency for database sessions.
+- **SQLAlchemy Schemas (`backend/models.py`)**:
+  - **`Vendor`**: Stores vendor metadata (name, address, email, phone, GSTIN, PAN).
+  - **`Invoice`**: Tracks invoice headers, totals, file paths, extraction method, notes, and soft-delete timestamp (`deleted_at`).
+  - **`LineItem`**: Details line-by-line descriptions, HSN codes, quantity, unit, price, CGST, SGST, and IGST percentages.
+  - **`TaxEntry`**: Tracks individual tax breakdown totals (CGST, SGST, IGST, CESS, etc.) and rates.
+  - **`Category`**: Custom categorization tags with names and hex colors.
+  - **`InvoiceCategory`**: Many-to-many relationship mapping invoices to categories.
+- **Alembic Migrations**:
+  - Configured project migrations (`alembic.ini`, `alembic/env.py`) to dynamically pull settings from the application environment variables.
+  - Created initial schema migration script `alembic/versions/0001_initial.py`.
+- **CRUD Query Logic (`backend/crud/`)**:
+  - `vendors.py`: alphabetized lookup, automated creation, profile backfill.
+  - `invoices.py`: creates parent invoice record with children (line items, tax entries, categories), handles soft-deletes, details retrieval, and text search on numbers, notes, and vendor names.
+- **API Routers**:
+  - `health.py`: GET `/api/health` → checks system health.
+  - `invoices.py`:
+    - `GET /api/invoices`: Returns list of active (non soft-deleted) invoices. Supports query parameters `vendor_id`, `date_from`, `date_to`, and `search`.
+    - `GET /api/invoices/{id}`: Returns single active invoice with all details, line items, and tax entries.
+    - `DELETE /api/invoices/{id}`: Performs a soft-delete (marks `deleted_at` timestamp).
+    - `PATCH /api/invoices/{id}/notes`: Modifies the invoice text notes field.
+
+### 2. React 18 Frontend (Vite + Tailwind CSS)
+- **Vite Proxy Config**: Maps `/api` to the backend running on `http://localhost:8000`.
+- **Styling**: Configured with Tailwind CSS v3 including the `@tailwindcss/forms` plugin.
+- **Dashboard Workspace**: Beautiful dark-themed sidebar, active navigation, and live API diagnostic health checks.
+
+### 3. Storage & Assets Scaffold
+- **Storage Target**: Files are uploaded and statically served via `uploads/` mount.
+- **Git Rules**: `.gitignore` configured to exclude local sqlite database files, python virtual environment files, node packages, and environment secrets.
 
 ---
 
@@ -26,73 +46,106 @@ Welcome to **Bill Manager**, a local bill and invoice manager app designed to ex
 ```text
 bill-manager/
 ├── backend/
-│   ├── main.py                  # FastAPI app entry point (CORS + routing)
-│   ├── config.py                # App settings (Pydantic Settings loader)
-│   ├── requirements.txt         # Backend Python dependencies
-│   ├── .env                     # Local active env configurations (gitignored)
-│   ├── .env.example             # Template env configuration file
-│   └── routers/
-│       └── health.py            # GET /health → {"status": "ok"}
+│   ├── alembic/                 # Alembic migration scripts and environment
+│   │   ├── env.py               # Configures metadata and DATABASE_URL
+│   │   └── versions/            # Database schema versions history
+│   │       └── 0001_initial.py  # Section 2: Initial tables schema
+│   ├── crud/                    # Section 2: Database query helper files
+│   │   ├── invoices.py          # Invoice retrieval, create, search, and delete
+│   │   └── vendors.py           # Vendor retrieval and lookup logic
+│   ├── routers/                 # FastAPI routes definitions
+│   │   ├── health.py            # Status verification
+│   │   └── invoices.py          # Section 2: GET, DELETE, PATCH invoice routes
+│   ├── alembic.ini              # Alembic environment config
+│   ├── config.py                # App settings loader (Pydantic Settings)
+│   ├── database.py              # Section 2: DB engine & sessionmaker config
+│   ├── main.py                  # API endpoints mount & static folder service
+│   ├── models.py                # Section 2: All SQLAlchemy database models
+│   ├── requirements.txt         # Backend Python dependencies list
+│   └── .env                     # Local configuration secrets (gitignored)
 ├── frontend/
-│   ├── package.json             # Frontend NPM scripts & dependencies
-│   ├── vite.config.js           # Vite development server settings with /api proxy
-│   ├── tailwind.config.js       # Tailwind CSS v3 theme rules
-│   ├── postcss.config.js        # PostCSS build tool settings
-│   ├── index.html               # Main entry HTML (imports Inter & Outfit typography)
-│   └── src/
-│       ├── main.jsx             # React DOM loader
-│       ├── App.jsx              # Responsive dashboard shell and API diagnostics
-│       └── index.css            # Tailwind CSS directives & scrollbar styles
-├── uploads/                     # Storage target folder for uploaded bills (gitignored)
-├── .gitignore                   # Workspace Git track exclusion rules
-└── README_DONE.md               # Section 1 summary and instructions
+│   ├── package.json             # NPM package scripts & configuration
+│   ├── vite.config.js           # Proxy maps frontend requests to API
+│   ├── src/
+│   │   ├── App.jsx              # Workspace Dashboard UI
+│   │   └── index.css            # Tailwind directives
+│   └── ...                      # Configurations for build, PostCSS, and tailwind
+├── uploads/                     # Storage folder for uploaded invoices (gitignored)
+├── .gitignore                   # Exclude list for git commits
+└── README_DONE.md               # Summary of Section 1 & 2 additions
 ```
-
----
-
-## How to Run
-
-Follow these commands to start the development servers.
-
-### Backend (FastAPI)
-From the `bill-manager/backend/` directory:
-```bash
-# 1. Activate the python virtual environment
-# On Windows:
-.\venv\Scripts\Activate.ps1
-# On Linux/macOS:
-source venv/bin/activate
-
-# 2. Start the Uvicorn application server
-uvicorn main:app --reload --port 8000
-```
-The backend API will run on [http://localhost:8000](http://localhost:8000).
-
-### Frontend (React + Vite)
-From the `bill-manager/frontend/` directory:
-```bash
-# Run the dev server
-npm run dev
-```
-The frontend UI will run on [http://localhost:5173](http://localhost:5173).
 
 ---
 
 ## Environment Variables List
 
-The backend uses a local `.env` configuration file to load settings. The following variables are supported:
+The backend loads config variables from `.env` inside `backend/`:
 
 | Key | Default Value | Description |
 | :--- | :--- | :--- |
 | `DATABASE_URL` | `sqlite:///./bill_manager.db` | Connection string to SQLite database file |
-| `UPLOAD_DIR` | `../uploads` | Path to save physical bill/invoice files (relative to `backend/`) |
-| `SECRET_KEY` | `changeme` | Secret key used for hash encryption signatures |
+| `UPLOAD_DIR` | `../uploads` | Storage directory for original invoice documents |
+| `SECRET_KEY` | `changeme` | Secret key for hashing security functions |
 
 ---
 
-## What Comes Next (Section 2 Preview)
+## How to Run
 
-In the next section, we will:
-1. **Define Database Schemas**: Set up SQLAlchemy models for transactions, extracted line items, and vendors using SQLite.
-2. **Implement OCR Processing Pipeline**: Build a three-tier pipeline (e.g., pdfplumber, pytesseract, and LLM text extraction) to parse bills, receipts, and invoices.
-3. **Create API Routes**: Construct endpoints for uploading files (`POST /api/bills/upload`), triggering extraction, and fetching historical transactions.
+### 1. Database Migrations Setup
+Run this once to configure your local SQLite database structure. From the `backend/` directory:
+```bash
+# Activate your virtual environment:
+# Windows (PowerShell)
+.\venv\Scripts\Activate.ps1
+# macOS/Linux
+source venv/bin/activate
+
+# Execute Alembic migrations
+alembic upgrade head
+```
+
+### 2. Run Backend (FastAPI API Server)
+From the `backend/` directory with the virtual environment active:
+```bash
+uvicorn main:app --reload --port 8000
+```
+*The API will start on [http://localhost:8000](http://localhost:8000).*
+
+### 3. Run Frontend (React Dashboard)
+From the `frontend/` directory in a new terminal window:
+```bash
+# Install NPM packages (first run only)
+npm install
+
+# Start Vite server
+npm run dev
+```
+*The UI will start on [http://localhost:5173](http://localhost:5173).*
+
+---
+
+## API Verification Cheatsheet
+
+With the Uvicorn server running, verify database endpoints with these client commands:
+
+### List Invoices (GET)
+```bash
+curl -i http://localhost:8000/api/invoices
+```
+*Returns `[]` initially. Filters supported: `?vendor_id=...`, `?date_from=2026-06-01`, `?date_to=2026-06-30`, `?search=ACME`.*
+
+### Get Invoice Details (GET)
+```bash
+curl -i http://localhost:8000/api/invoices/{uuid}
+```
+
+### Update Notes (PATCH)
+```bash
+curl -i -X PATCH -H "Content-Type: application/json" -d '{"notes": "Revised item total checks"}' http://localhost:8000/api/invoices/{uuid}/notes
+```
+
+### Soft-Delete Invoice (DELETE)
+```bash
+curl -i -X DELETE http://localhost:8000/api/invoices/{uuid}
+```
+*Removes invoice from list results by applying a `deleted_at` timestamp.*
