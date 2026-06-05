@@ -4,7 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from config import settings, upload_path
-from routers import health, invoices
+from routers import health, invoices, upload
 
 app = FastAPI(
     title="Bill Manager API",
@@ -26,9 +26,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Register routers. Mount health and invoices under /api
+# Register routers. Mount health, invoices and upload under /api
 app.include_router(health.router, prefix="/api")
 app.include_router(invoices.router, prefix="/api")
+app.include_router(upload.router, prefix="/api")
 
 # Mount upload directory to serve files statically
 app.mount("/uploads", StaticFiles(directory=upload_path), name="uploads")

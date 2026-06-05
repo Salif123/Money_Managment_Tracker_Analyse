@@ -30,3 +30,6 @@ Thumbs.db
 # App Uploads
 uploads/*
 !uploads/.gitkeep
+
+# Dataset testing files
+dataset/

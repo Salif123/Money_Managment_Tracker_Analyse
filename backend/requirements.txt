@@ -7,3 +7,10 @@ pydantic
 pydantic-settings
 python-multipart
 aiofiles
+pdf2image
+opencv-python-headless
+numpy
+Pillow
+pdfplumber
+python-magic; sys_platform != 'win32'
+python-magic-bin; sys_platform == 'win32'
