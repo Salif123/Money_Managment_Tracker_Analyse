@@ -25,6 +25,9 @@ class UploadPrepareResponse(BaseModel):
     file_type: FileType
     pages: int
     preview_url: Optional[str] = None
+    ocr_engine_used: str
+    ocr_confidence: float
+    raw_text_preview: str
 
 @router.post("/upload/prepare", response_model=UploadPrepareResponse)
 async def upload_prepare(file: UploadFile = File(...)):
@@ -112,5 +115,8 @@ async def upload_prepare(file: UploadFile = File(...)):
         file_id=file_id,
         file_type=prepared.file_type,
         pages=pages_count,
-        preview_url=preview_url
+        preview_url=preview_url,
+        ocr_engine_used=prepared.ocr_engine_used,
+        ocr_confidence=prepared.ocr_confidence,
+        raw_text_preview=prepared.raw_text[:300]
     )

@@ -8,20 +8,23 @@ from typing import List, Optional
 from config import upload_path
 from .detector import detect_file_type, FileType
 from .preprocessor import pdf_to_images, preprocess_image, save_preprocessed
+from .ocr.engine import extract_text
 
 @dataclass
 class PreparedFile:
     file_type: FileType
     image_paths: List[str]      # Absolute or relative paths to preprocessed PNG images
-    raw_pdf_text: Optional[str] = None  # Full extracted text for digital PDFs only
+    raw_text: str               # Extracted text (digital or OCR)
+    ocr_engine_used: str        # Engine used (e.g. "digital", "tesseract", "paddle", etc.)
+    ocr_confidence: float       # Confidence score (0.0 to 1.0)
 
 def prepare_file(file_path: str) -> PreparedFile:
     """
     Orchestrates the first stage of the extraction pipeline:
     1. Detects file type.
     2. If DIGITAL_PDF, extracts all text.
-    3. If SCANNED_PDF, converts pages to images, preprocesses each page, and saves them.
-    4. If IMAGE, reads the image, preprocesses it, and saves it.
+    3. If SCANNED_PDF, converts pages to images, preprocesses each page, runs OCR, and saves them.
+    4. If IMAGE, reads the image, preprocesses it, runs OCR, and saves it.
     """
     # Detect file type
     file_type = detect_file_type(file_path)
@@ -38,7 +41,9 @@ def prepare_file(file_path: str) -> PreparedFile:
         file_id = str(uuid.uuid4())
         
     image_paths = []
-    raw_pdf_text = None
+    page_texts = []
+    page_engines = []
+    page_confidences = []
 
     if file_type == FileType.DIGITAL_PDF:
         # Extract text from all pages
@@ -49,10 +54,14 @@ def prepare_file(file_path: str) -> PreparedFile:
                     text = page.extract_text()
                     if text:
                         text_pages.append(text)
-            raw_pdf_text = "\n".join(text_pages)
+            raw_text = "\n".join(text_pages)
         except Exception as e:
             # Fallback if parsing fails
-            raw_pdf_text = ""
+            raw_text = ""
+        
+        # Digital PDFs don't use OCR
+        ocr_engine_used = "digital"
+        ocr_confidence = 1.0
             
     elif file_type == FileType.SCANNED_PDF:
         # Convert pages to images
@@ -63,14 +72,22 @@ def prepare_file(file_path: str) -> PreparedFile:
             out_filename = f"{file_id}_page_{idx + 1}.png"
             out_path = os.path.join(preprocessed_dir, out_filename)
             save_preprocessed(preprocessed_img, out_path)
-            # Store relative or absolute path. Let's store absolute path, or relative path to upload_path
-            # Let's store relative path or standard path to keep it consistent
-            # The prompt says: "save PNGs to uploads/preprocessed/". Let's save and store relative path: "uploads/preprocessed/{filename}"
-            # Let's make it relative to the upload_path or project root depending on how FastAPI serves it.
-            # Since the router returns a preview_url which maps to /uploads/preprocessed/..., storing the relative path from the upload_path is ideal.
-            # Let's store the relative path from project root: "uploads/preprocessed/{filename}"
+            
+            # Store path relative to project root
             rel_path = f"uploads/preprocessed/{out_filename}"
             image_paths.append(rel_path)
+            
+            # Run OCR engine on the preprocessed page image
+            ocr_res = extract_text(out_path)
+            page_texts.append(ocr_res.text)
+            page_engines.append(ocr_res.engine)
+            page_confidences.append(ocr_res.confidence)
+            
+        raw_text = "\n".join(page_texts)
+        # Combine unique engines used
+        unique_engines = sorted(list(set(page_engines)))
+        ocr_engine_used = ", ".join(unique_engines) if unique_engines else "none"
+        ocr_confidence = sum(page_confidences) / len(page_confidences) if page_confidences else 0.0
             
     elif file_type == FileType.IMAGE:
         # Load image
@@ -86,8 +103,21 @@ def prepare_file(file_path: str) -> PreparedFile:
         rel_path = f"uploads/preprocessed/{out_filename}"
         image_paths.append(rel_path)
         
+        # Run OCR engine on the preprocessed image
+        ocr_res = extract_text(out_path)
+        page_texts.append(ocr_res.text)
+        page_engines.append(ocr_res.engine)
+        page_confidences.append(ocr_res.confidence)
+        
+        raw_text = "\n".join(page_texts)
+        ocr_engine_used = page_engines[0] if page_engines else "none"
+        ocr_confidence = page_confidences[0] if page_confidences else 0.0
+        
     return PreparedFile(
         file_type=file_type,
         image_paths=image_paths,
-        raw_pdf_text=raw_pdf_text
+        raw_text=raw_text,
+        ocr_engine_used=ocr_engine_used,
+        ocr_confidence=ocr_confidence
     )
+
